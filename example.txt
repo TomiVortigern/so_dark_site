@@ -1,0 +1,137 @@
+﻿
+scottlinux.com 
+How to Create a Tor .onion Site [Updated] – scottlinux.com
+
+
+
+Tor hidden services use .onion domain names. I’ll show you how to create a hidden service .onion site configured securely to prevent information leakage.
+Note: This is serious stuff. This guide is aimed towards persons comfortable in running Linux servers. Be safe.
+
+Some basic tips:
+Do not run or do anything else on this server. 
+Start with a clean install with a new server or VPS. 
+Do not have or run any other services from the VPS provider. 
+Pay for your VPS service with paypal or better yet bitcoin. 
+Do not provide any identifiable information about yourself to the VPS provider. 
+Do not run a tor relay on this server because the real world public IP of tor relays are public. 
+Do not send email from this server. 
+Do not run horrible or shoddy code web software. If your web app has an admin login or admin account, change the password to a complex 26 character password. Many tor websites have been p0wned by someone just guessing the admin login. 
+Avoid web software that makes use of any scripting like javascript. 
+Make sure your web app does not reveal any error message or identifiable information like the real public ip through any error messages. 
+Audit the web frontend code so it does not pull in from things like jquery.com or google fonts, or from any outside services. 
+Keep the VPS up-to-date with security updates. 
+
+This guide uses nginx to serve up your website files to Tor using Debian Wheezy. nginx will be configured to listen only to Tor, and only be accessible over Tor. 
+
+nginx
+If you haven’t already, install nginx:
+$ sudo apt-get install nginx
+
+By default nginx sends a version banner broadcasting what version is running. Disable the nginx version banner by setting server_tokens to off in the following file:
+/etc/nginx/nginx.conf
+http {
+
+...
+
+        server_tokens off;
+
+...
+
+In that same file, completely disable logging from nginx:
+/etc/nginx/nginx.conf
+http {
+
+
+...
+
+        ##
+        # Logging Settings
+        ##
+
+        #access_log /var/log/nginx/access.log;
+        #error_log /var/log/nginx/error.log;
+
+        error_log /dev/null crit;
+
+Configure nginx to listen localhost on port 8080.
+Below is a complete sites-available/default file you may drop in place.
+The location of the website html files will be in /usr/share/nginx/www which is the Debian default (alter website root location as desired!).
+/etc/nginx/sites-available/default
+server {
+        listen 127.0.0.1:8080 default_server;
+        server_name localhost;
+
+        root /usr/share/nginx/www;
+        index index.html index.htm;
+
+        location / {
+                allow 127.0.0.1;
+                deny all;
+
+        }
+}
+Restart nginx
+$ sudo service nginx restart
+
+Disable rsyslog to disable any system logging.
+$ sudo apt-get remove --purge rsyslog
+
+Disable any email MTA software which could be used to send out email.
+$ sudo apt-get remove --purge exim
+
+$ sudo apt-get remove --purge postfix
+
+$ sudo apt-get remove --purge sendmail
+
+Remove wget which can be used to identify your host through malicious scripts if it is compromised.
+$ sudo apt-get remove wget
+
+If allowing ssh, disable the Debian banner which can be used to identify the Debian version from the publc ip.
+/etc/ssh/sshd_config
+DebianBanner no
+
+Install Tor
+Follow the torproject.org docs to add the Debian repo as shown here and then you can sudo apt-get install tor from the tor project repository.
+
+Edit /etc/tor/torrc
+Now that Tor is installed, edit /etc/tor/torrc and make sure the following lines are in place:
+HiddenServiceDir /var/lib/tor/hidden_service/
+HiddenServicePort 80 127.0.0.1:8080
+Save that file then start (or restart) tor.
+$ sudo service tor start
+When tor starts, it will create a private key in your HiddenServiceDir as well as create your unique .onion hostname.
+Below is what those files will appear as. Of course, you should never give out or display your private key! Keep that secret. The following is for demonstration purposes and for science.
+root@starbuck:~# cd /var/lib/tor/hidden_service/
+root@starbuck:/var/lib/tor/hidden_service# ls
+hostname  private_key
+root@starbuck:/var/lib/tor/hidden_service# cat private_key 
+-----BEGIN RSA PRIVATE KEY-----
+MIICXAIBAAKBgQC9ymfMgQk12AFT4PXWV+XfmZ1tVDaGajya/jIuwnwtjFdMWe7m
+VDWMjs8Z02GGJhH6tIIpoDUrWLi+YchNHlQBi2AnBFzAoSlfRcvobeBAaWuQn+aH
+Uzr+xVXOADSIcfgtT5Yd13RKmUEKFV8AO9u652zYP1ss0l+S2mY/J/t/3wIDAQAB
+AoGAMjQwcPBRN2UENOP1I9XsgNFpy1nTcor3rShArg3UO1g8X34Kq/Lql1vPfM1l
+ps67Qs4tAEXYyraVaAcFrSCwp6MyeKYwxZtT7ki7q3rbMycvbYquxquh0uGy4aed
+K8XWjPrUv3yzQSYslOehVWMTH7xTzaOvp5uhpAlHFRqN5MECQQDmpFkXmtfEGwqT
+bRbKegRs9siNY6McWBCGrYc/BrpXEiK0j2QcrjC/dMJ4P9O4A94aG4NSI/005fII
+vxrOmD9VAkEA0qhBVWeZD7amfvPYChQo0B4ACZZdJlcUd/x1JSOYbVKvRCvJLxjT
+5LMwg93jj2m386jXWx8n40Zcus6BTDr6YwJBAKH8E0ZszdVBWLAqEbOq9qjAuiHz
+NH+XqiOshCxTwVOdvRorCxjJjhspGdvyl/PJY5facuShuhgI13AlJ+KpMvECQHDJ
+l1lzw1bPc2uLgUM8MfHj7h8z+6G4hAQODmaZHVaDK8XzL59gyqqrajFgTyOM9emm
+n89w6flcxe9a+41mEoMCQBaM91yvrfp7N9BeDMCHlSDfAzX7sDqQn44ftHvZZI9V
+4IouuRuLlqN0iaw4V73v3MUeqXoasmdeZ89bVGhVrC8=
+-----END RSA PRIVATE KEY-----
+root@starbuck:/var/lib/tor/hidden_service# cat hostname 
+juyy62wplbkk7gzy.onion
+root@starbuck:/var/lib/tor/hidden_service# 
+
+Setup and use a Firewall
+Use a firewall and optionally allow port 22. If more paranoid, do not allow port 22 at all and manage only from your provider’s control panel console access.
+$ sudo apt-get install ufw
+
+$ sudo ufw allow ssh
+
+$ sudo ufw enable
+
+With some luck, you now should see a default nginx page over your .onion address!
+ 
+
